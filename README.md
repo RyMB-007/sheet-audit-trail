@@ -61,7 +61,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # compare against the PR base
           lfs: true        # if workbooks are in Git LFS
