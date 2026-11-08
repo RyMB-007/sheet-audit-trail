@@ -1,7 +1,7 @@
 name: Spreadsheet Audit Trail
 description: >-
-  Turn binary Excel diffs into an audit-ready PR comment: changed formulas,
-  hardcoded overrides, inserted rows, dependency impact and risk flags.
+  Audit-ready PR comments for Excel changes: formulas, hardcoded values,
+  dependency impact and risk flags.
 author: Sheet Audit Trail
 branding:
   icon: grid
