@@ -7,7 +7,7 @@ name = "sheet-audit-trail"
 version = "0.1.0"
 description = "Audit-grade diffs for Excel workbooks and Google Sheets, posted to GitHub pull requests."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = ["openpyxl>=3.1"]
 
