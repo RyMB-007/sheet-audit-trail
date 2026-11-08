@@ -1,0 +1,22 @@
+# Copy to .github/workflows/spreadsheet-audit.yml in the repo that holds your models.
+name: Spreadsheet audit
+
+on:
+  pull_request:
+    paths: ["**/*.xlsx", "**/*.xlsm"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed to compare against the PR base
+          lfs: true        # if your workbooks are stored with Git LFS
+      - uses: YOUR-ORG/sheet-audit-trail@v1
+        with:
+          fail-on: high    # block merges that overwrite formulas with hardcodes, add #REF!, etc.

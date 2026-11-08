@@ -1,0 +1,136 @@
+name: Spreadsheet Audit Trail
+description: >-
+  Turn binary Excel diffs into an audit-ready PR comment: changed formulas,
+  hardcoded overrides, inserted rows, dependency impact and risk flags.
+author: Sheet Audit Trail
+branding:
+  icon: grid
+  color: green
+
+inputs:
+  github-token:
+    description: Token used to post the PR comment (needs pull-requests write).
+    default: ${{ github.token }}
+  include:
+    description: Newline-separated globs of workbooks to audit.
+    default: |
+      *.xlsx
+      *.xlsm
+  fail-on:
+    description: Fail the check if a risk flag at/above this severity is raised (none | low | medium | high).
+    default: none
+  comment:
+    description: Post / update a sticky comment on the pull request.
+    default: "true"
+  base:
+    description: Base revision (defaults to the PR base, or the previous commit on push).
+    default: ""
+  head:
+    description: Head revision (defaults to the PR head, or the pushed commit).
+    default: ""
+  python-version:
+    description: Python version to run the tool with.
+    default: "3.12"
+
+outputs:
+  changed-files:
+    description: Number of workbooks with content changes.
+    value: ${{ steps.audit.outputs.changed-files }}
+  cell-changes:
+    description: Total number of changed cells.
+    value: ${{ steps.audit.outputs.cell-changes }}
+  high:
+    description: Number of high-severity risk flags.
+    value: ${{ steps.audit.outputs.high }}
+  medium:
+    description: Number of medium-severity risk flags.
+    value: ${{ steps.audit.outputs.medium }}
+  low:
+    description: Number of low-severity risk flags.
+    value: ${{ steps.audit.outputs.low }}
+  report-path:
+    description: Path to the Markdown report.
+    value: ${{ steps.audit.outputs.report-path }}
+  json-path:
+    description: Path to the JSON report.
+    value: ${{ steps.audit.outputs.json-path }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install sheet-audit-trail
+      shell: bash
+      run: python -m pip install --quiet --disable-pip-version-check "${GITHUB_ACTION_PATH}"
+
+    - name: Diff spreadsheets
+      id: audit
+      shell: bash
+      env:
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_HEAD: ${{ inputs.head }}
+        INPUT_INCLUDE: ${{ inputs.include }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        SHEETAUDIT_FOOTER: "<sub>[Workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) · full report in the job summary</sub>"
+      run: |
+        set -euo pipefail
+        base="${INPUT_BASE:-${PR_BASE:-${PUSH_BEFORE:-}}}"
+        head="${INPUT_HEAD:-${PR_HEAD:-$GITHUB_SHA}}"
+        if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+          base="$(git rev-parse "${head}~1" 2>/dev/null || git hash-object -t tree /dev/null)"
+        fi
+        if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+          git fetch --no-tags --quiet origin "$base" || {
+            echo "::error::Base revision $base is not available. Use actions/checkout with fetch-depth: 0."; exit 1; }
+        fi
+        args=()
+        while IFS= read -r pattern; do
+          pattern="$(echo "$pattern" | xargs)"
+          [[ -n "$pattern" ]] && args+=(--include "$pattern")
+        done <<< "$INPUT_INCLUDE"
+        out="$RUNNER_TEMP/sheet-audit"
+        mkdir -p "$out"
+        sheetaudit git --base "$base" --head "$head" "${args[@]}" --fit \
+          -o "$out/comment.md" --full-output "$out/report.md" --json "$out/report.json"
+        cat "$out/report.md" >> "$GITHUB_STEP_SUMMARY"
+        echo "report-path=$out/report.md" >> "$GITHUB_OUTPUT"
+        echo "json-path=$out/report.json" >> "$GITHUB_OUTPUT"
+
+    - name: Comment on pull request
+      if: inputs.comment == 'true' && github.event.pull_request.number
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        CHANGED: ${{ steps.audit.outputs.changed-files }}
+      run: |
+        extra=()
+        [[ "${CHANGED:-0}" == "0" ]] && extra+=(--update-only)
+        sheetaudit comment --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" \
+          --body-file "$RUNNER_TEMP/sheet-audit/comment.md" "${extra[@]}" \
+          || echo "::warning::Could not post the PR comment (fork PRs get a read-only token). The report is in the job summary."
+
+    - name: Enforce risk threshold
+      if: inputs.fail-on != 'none'
+      shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
+        HIGH: ${{ steps.audit.outputs.high }}
+        MEDIUM: ${{ steps.audit.outputs.medium }}
+        LOW: ${{ steps.audit.outputs.low }}
+      run: |
+        case "$FAIL_ON" in
+          high) n=$HIGH ;;
+          medium) n=$((HIGH + MEDIUM)) ;;
+          low) n=$((HIGH + MEDIUM + LOW)) ;;
+          *) echo "::error::fail-on must be none, low, medium or high"; exit 1 ;;
+        esac
+        if (( n > 0 )); then
+          echo "::error::$n spreadsheet risk flag(s) at or above '$FAIL_ON' severity. See the PR comment / job summary."
+          exit 1
+        fi

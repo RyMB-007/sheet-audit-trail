@@ -1,0 +1,54 @@
+# Snapshots Google Sheets into the repo on a schedule and opens a PR when their
+# content changed, so every edit to the sheet gets an audit diff.
+#
+# Setup:
+#   1. Create a Google Cloud service account with the Drive API enabled and
+#      share each sheet (Viewer) with the service account's email.
+#   2. Save its JSON key as the repo secret GOOGLE_SERVICE_ACCOUNT_JSON.
+#   3. Commit a gsheets.json manifest:
+#        {"sheets": [{"id": "<spreadsheet id from the URL>", "path": "models/forecast.xlsx"}]}
+#   4. PRs opened with the default GITHUB_TOKEN do NOT trigger other workflows,
+#      so this workflow runs the audit itself in the same job.
+name: Google Sheets snapshot
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "sheet-audit-trail[gsheets] @ git+https://github.com/YOUR-ORG/sheet-audit-trail@v1"
+      - id: sync
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: sheetaudit gsheet-sync --manifest gsheets.json
+      - id: pr
+        if: steps.sync.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: gsheets-snapshot
+          commit-message: "Snapshot Google Sheets"
+          title: "Google Sheets changes"
+          body: "Automated snapshot of the Google Sheets listed in `gsheets.json`."
+      - if: steps.pr.outputs.pull-request-number
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin gsheets-snapshot
+          sheetaudit git --base "origin/${{ github.event.repository.default_branch }}" \
+            --head origin/gsheets-snapshot --fit -o report.md
+          sheetaudit comment --repo "$GITHUB_REPOSITORY" \
+            --pr "${{ steps.pr.outputs.pull-request-number }}" --body-file report.md
