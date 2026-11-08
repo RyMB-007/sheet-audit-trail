@@ -1,5 +1,8 @@
 # 📊 Sheet Audit Trail
 
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Spreadsheet%20Audit%20Trail-blue?logo=github)](https://github.com/marketplace/actions/spreadsheet-audit-trail)
+[![CI](https://github.com/RyMB-007/sheet-audit-trail/actions/workflows/ci.yml/badge.svg)](https://github.com/RyMB-007/sheet-audit-trail/actions/workflows/ci.yml)
+
 **Git diffs for spreadsheets.** A GitHub Action (and CLI) that parses Excel workbooks
 whenever they change in a pull request and posts an audit-ready Markdown diff of
 formulas, hardcoded inputs and cell dependencies, instead of
