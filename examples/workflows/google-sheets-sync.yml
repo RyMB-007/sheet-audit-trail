@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install "sheet-audit-trail[gsheets] @ git+https://github.com/YOUR-ORG/sheet-audit-trail@v1"
+      - run: pip install "sheet-audit-trail[gsheets] @ git+https://github.com/RyMB-007/sheet-audit-trail@v1"
       - id: sync
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}

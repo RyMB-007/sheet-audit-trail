@@ -65,7 +65,7 @@ jobs:
         with:
           fetch-depth: 0   # compare against the PR base
           lfs: true        # if workbooks are in Git LFS
-      - uses: YOUR-ORG/sheet-audit-trail@v1
+      - uses: RyMB-007/sheet-audit-trail@v1
         with:
           fail-on: high    # optional: block merges with high-risk edits
 ```

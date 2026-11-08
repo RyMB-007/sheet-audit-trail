@@ -17,6 +17,6 @@ jobs:
         with:
           fetch-depth: 0   # needed to compare against the PR base
           lfs: true        # if your workbooks are stored with Git LFS
-      - uses: YOUR-ORG/sheet-audit-trail@v1
+      - uses: RyMB-007/sheet-audit-trail@v1
         with:
           fail-on: high    # block merges that overwrite formulas with hardcodes, add #REF!, etc.
