@@ -2,6 +2,7 @@
 
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Spreadsheet%20Audit%20Trail-blue?logo=github)](https://github.com/marketplace/actions/spreadsheet-audit-trail)
 [![CI](https://github.com/RyMB-007/sheet-audit-trail/actions/workflows/ci.yml/badge.svg)](https://github.com/RyMB-007/sheet-audit-trail/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/RyMB-007/sheet-audit-trail/blob/main/LICENSE)
 
 **Git diffs for spreadsheets.** A GitHub Action (and CLI) that parses Excel workbooks
 whenever they change in a pull request and posts an audit-ready Markdown diff of
@@ -11,6 +12,14 @@ formulas, hardcoded inputs and cell dependencies, instead of
 Built for finance teams whose valuation models, forecasts and board packs live in Excel
 or Google Sheets, where finding *which cell changed* after a model breaks is a forensic
 exercise.
+
+<p align="center">
+  <a href="https://github.com/RyMB-007/sheet-audit-demo/pull/1">
+    <img src="https://raw.githubusercontent.com/RyMB-007/sheet-audit-trail/main/docs/pr-comment.png" width="720"
+         alt="Sheet Audit Trail PR comment: risk flags, impact on calculated values and cell-by-cell changes for a DCF model">
+  </a>
+  <br><sub>A real comment from the <a href="https://github.com/RyMB-007/sheet-audit-demo/pull/1">demo pull request</a>.</sub>
+</p>
 
 ## What the PR comment shows
 
@@ -22,7 +31,7 @@ exercise.
 | **Changes by sheet** 🔍 | Each changed cell with its business label (*"Free cash flow · 2028"*), before/after formula **and** value. An edit copied across a row is collapsed into one line (`B7:F7 · 5 cells`) |
 | **Structure** ↕️ | Inserted/deleted rows and columns, added/deleted/renamed/hidden sheets, named-range edits |
 
-See [`examples/demo/sample-report.md`](examples/demo/sample-report.md) for a full report on the
+See [`examples/demo/sample-report.md`](https://github.com/RyMB-007/sheet-audit-trail/blob/main/examples/demo/sample-report.md) for a full report on the
 included DCF model.
 
 ### Risk flags
@@ -85,7 +94,10 @@ jobs:
 
 Outputs: `changed-files`, `cell-changes`, `high`, `medium`, `low`, `report-path`, `json-path`.
 
-## Google Sheets
+## Google Sheets (experimental)
+
+> **Experimental:** this path hasn't been tested end-to-end against the live Google Drive API yet.
+> Please [open an issue](https://github.com/RyMB-007/sheet-audit-trail/issues) if it doesn't work for you.
 
 Google Sheets don't live in git, so the tool snapshots them as `.xlsx`:
 
@@ -93,15 +105,19 @@ Google Sheets don't live in git, so the tool snapshots them as `.xlsx`:
    `{"sheets": [{"id": "<id from the sheet URL>", "path": "models/forecast.xlsx"}]}`
 2. Share each sheet (Viewer) with a Google Cloud service account and store its key as the
    secret `GOOGLE_SERVICE_ACCOUNT_JSON`.
-3. Use [`examples/workflows/google-sheets-sync.yml`](examples/workflows/google-sheets-sync.yml):
+3. Use [`examples/workflows/google-sheets-sync.yml`](https://github.com/RyMB-007/sheet-audit-trail/blob/main/examples/workflows/google-sheets-sync.yml):
    on a schedule it exports each sheet. If the *content* changed (re-exports with identical
    content are ignored), it opens a PR and posts the audit diff on it.
 
 ## CLI
 
-```bash
-pip install .                      # or: pip install ".[gsheets]"
+Diff workbooks locally, no GitHub needed:
 
+```bash
+pip install sheet-audit-trail              # or: pip install "sheet-audit-trail[gsheets]"
+```
+
+```bash
 sheetaudit diff old.xlsx new.xlsx              # Markdown to stdout
 sheetaudit diff old.xlsx new.xlsx --json r.json --fail-on high
 sheetaudit git --base main --head HEAD         # every workbook changed on this branch
@@ -141,6 +157,14 @@ sheetaudit gsheet-sync --manifest gsheets.json
 * Row and column insertions in the *same* sheet in one PR fall back to a positional diff
   for that sheet.
 
+## Versioning
+
+Releases follow [semantic versioning](https://semver.org/) and are listed in the
+[changelog](https://github.com/RyMB-007/sheet-audit-trail/blob/main/CHANGELOG.md).
+
+* `@v1` always points at the latest `v1.x.y` release. Use it to get fixes automatically.
+* `@v1.0.0` (an exact tag) never changes. Use it if you want to upgrade on your own schedule.
+
 ## Development
 
 ```bash
@@ -148,3 +172,15 @@ pip install -e ".[test]"
 python examples/make_demo.py examples/demo   # builds the demo models (uses LibreOffice if present)
 pytest -q
 ```
+
+### Releasing (maintainers)
+
+1. Update `version` in `pyproject.toml` and `__version__` in `sheetaudit/__init__.py`,
+   and move the `[Unreleased]` notes in `CHANGELOG.md` under the new version.
+2. Merge to `main`, then publish a GitHub Release with the tag `vX.Y.Z` targeting `main`.
+3. The **Release** workflow runs the tests, moves the `vX` tag to the release, and
+   publishes the package to PyPI.
+
+## License
+
+[MIT](https://github.com/RyMB-007/sheet-audit-trail/blob/main/LICENSE)

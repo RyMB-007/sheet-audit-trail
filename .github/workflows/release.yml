@@ -1,0 +1,80 @@
+# Runs when a GitHub Release is published with a semantic-version tag (e.g. v1.0.1):
+#   1. checks the tag matches the version in pyproject.toml and runs the tests
+#   2. moves the floating major tag (v1) to this release, so `@v1` users get it
+#   3. builds the Python package and publishes it to PyPI (trusted publishing)
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      major: ${{ steps.ver.outputs.major }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: ver
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Release tag '$TAG' must look like v1.2.3"; exit 1
+          fi
+          version=$(grep -E '^version = ' pyproject.toml | cut -d'"' -f2)
+          if [[ "v$version" != "$TAG" ]]; then
+            echo "::error::Tag $TAG does not match pyproject.toml version $version"; exit 1
+          fi
+          echo "major=v${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[test]" && pytest -q
+
+  move-major-tag:
+    needs: verify
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - env:
+          MAJOR: ${{ needs.verify.outputs.major }}
+        run: |
+          git tag -f "$MAJOR" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$MAJOR"
+          echo "Moved $MAJOR to $(git rev-parse --short "$GITHUB_SHA")" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install build twine && python -m build && twine check --strict dist/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/sheet-audit-trail/
+    permissions:
+      id-token: write   # PyPI trusted publishing: no API token stored in the repo
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

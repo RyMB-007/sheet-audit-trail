@@ -222,3 +222,12 @@ def test_demo_model():
     dcf = next(s for s in d.sheets if s.name == "DCF")
     assert dcf.rows_inserted == [6]
     assert d.flag_counts()["high"] == 1
+
+
+def test_version_matches_pyproject():
+    import re
+
+    import sheetaudit
+
+    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    assert re.search(r'^version = "([^"]+)"', text, re.M).group(1) == sheetaudit.__version__
